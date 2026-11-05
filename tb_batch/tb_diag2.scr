@@ -1,0 +1,38 @@
+﻿(setq *d2err* (open "C:/RevitAddinDev/CIVIL 3D_MCP Setup/tb_batch/tb_diag2_err.txt" "w"))
+(write-line "SCRIPT_STARTED" *d2err*)
+(close *d2err*)
+(defun *error* (msg / ef) (setq ef (open "C:/RevitAddinDev/CIVIL 3D_MCP Setup/tb_batch/tb_diag2_err.txt" "a")) (write-line (strcat "ERROR: " msg) ef) (close ef) (princ))
+(defun d2:str (ed / s)
+  (setq s "")
+  (foreach g ed (if (member (car g) '(1 2 3 302)) (if (= (type (cdr g)) 'STR) (setq s (strcat s " [" (itoa (car g)) "]" (cdr g))))))
+  s)
+(defun d2:pt (ed / p)
+  (if (setq p (cdr (assoc 10 ed))) (strcat (rtos (car p) 2 2) "," (rtos (cadr p) 2 2)) "-"))
+(defun c:TBDIAG2 (/ f ss i e ed n b sub sed)
+  (setq f (open "C:/RevitAddinDev/CIVIL 3D_MCP Setup/tb_batch/tb_diag2.txt" "w"))
+  (write-line (strcat "DWG=" (getvar "DWGNAME")) f)
+  (if (setq ss (ssget "_X" '((67 . 1))))
+    (progn
+      (setq i 0)
+      (repeat (sslength ss)
+        (setq e (ssname ss i) ed (entget e) i (1+ i))
+        (if (not (member (cdr (assoc 0 ed)) '("LINE" "LWPOLYLINE" "HATCH" "CIRCLE" "ARC" "SPLINE" "SOLID" "POINT" "DIMENSION" "VIEWPORT")))
+          (progn
+            (write-line (strcat "PS|" (cdr (assoc 0 ed)) "|" (cdr (assoc 8 ed)) "|" (d2:pt ed) "|" (d2:str ed)) f)
+            (if (= (cdr (assoc 0 ed)) "INSERT")
+              (progn
+                (setq sub (entnext e))
+                (while (and sub (= (cdr (assoc 0 (setq sed (entget sub)))) "ATTRIB"))
+                  (write-line (strcat "  ATT|" (d2:pt sed) "|" (cdr (assoc 2 sed)) "=" (cdr (assoc 1 sed))) f)
+                  (setq sub (entnext sub)))
+                (setq b (tblobjname "BLOCK" (cdr (assoc 2 ed))) sub (entnext b))
+                (while sub
+                  (setq sed (entget sub))
+                  (if (member (cdr (assoc 0 sed)) '("TEXT" "MTEXT" "ATTDEF" "INSERT"))
+                    (write-line (strcat "  DEF|" (cdr (assoc 0 sed)) "|" (cdr (assoc 8 sed)) "|" (d2:pt sed) "|" (d2:str sed)) f))
+                  (setq sub (entnext sub))))))))))
+  (close f)
+  (princ "\nTBDIAG2_OK")
+  (princ))
+TBDIAG2
+

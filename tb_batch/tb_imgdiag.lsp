@@ -1,0 +1,12 @@
+(defun c:TBIMGDIAG (/ d f nm ed p)
+  (setq f (open *ID-OUT* "a"))
+  (write-line (strcat "== " (getvar "DWGPREFIX") (getvar "DWGNAME")) f)
+  (if (setq d (dictsearch (namedobjdict) "ACAD_IMAGE_DICT"))
+    (foreach g d
+      (cond ((= (car g) 3) (setq nm (cdr g)))
+            ((= (car g) 350)
+             (setq ed (entget (cdr g)) p (cdr (assoc 1 ed)))
+             (write-line (strcat "  " nm " | " (if p p "<none>") " | FOUND=" (if (and p (findfile p)) "Y" "N")) f))))
+    (write-line "  <no image dictionary>" f))
+  (close f)
+  (princ))

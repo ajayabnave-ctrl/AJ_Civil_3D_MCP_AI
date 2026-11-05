@@ -1,0 +1,14 @@
+﻿{
+  "mcpServers": {
+    "civil3d-mcp": {
+      "command": "node",
+      "args": ["C:/RevitAddinDev/CIVIL 3D_MCP Setup/build/index.js"],
+      "env": {
+        "CIVIL3D_HOST": "localhost",
+        "CIVIL3D_PORT": "8080",
+        "CIVIL3D_ENABLE_TOOL_ALIASES": "true",
+        "CIVIL3D_LOG_LEVEL": "info"
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+(defun pdf:layouts (/ d l nm ord)
+  (setq d (dictsearch (namedobjdict) "ACAD_LAYOUT"))
+  (foreach g d
+    (cond ((= (car g) 3) (setq nm (cdr g)))
+          ((and (= (car g) 350) nm (/= (strcase nm) "MODEL"))
+           (setq ord (cdr (assoc 71 (entget (cdr g)))))
+           (setq l (cons (cons (if ord ord 0) nm) l)))))
+  (mapcar 'cdr (vl-sort l '(lambda (a b) (< (car a) (car b))))))
+(defun c:TBPDF (/ lays base out f n)
+  (setq lays (list (car (pdf:layouts)))
+        base (substr (getvar "DWGNAME") 1 (- (strlen (getvar "DWGNAME")) 4))
+        n 0)
+  (foreach lay lays
+    (setvar "CTAB" lay)
+    (setq out (strcat *PDF-DIR* base ".pdf"))
+    (command "_.-PLOT" "_Y" lay "DWG To PDF.pc3" "ISO full bleed A1 (841.00 x 594.00 MM)"
+             "_M" "_L" "_N" "_L" "1:1" "0,0" "_Y" "" "_Y" "_N" "_N" "_N" out "_N" "_Y")
+    (setq n (1+ n)))
+  (if (setq f (open *PDF-LOG* "a"))
+    (progn (write-line (strcat (getvar "DWGNAME") ",LAYOUTS=" (itoa n)) f) (close f)))
+  (princ))

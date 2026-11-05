@@ -1,0 +1,18 @@
+﻿(defun c:TBRESTORE22 (/ ss i e ed p n f)
+  (setq n 0)
+  (if (setq ss (ssget "_X" '((0 . "MTEXT") (67 . 1) (8 . "0-LVI-Legend") (1 . "100% DETAILED DESIGN"))))
+    (progn
+      (setq i 0)
+      (repeat (sslength ss)
+        (setq e (ssname ss i) ed (entget e) p (cdr (assoc 10 ed)) i (1+ i))
+        (if (and (< (abs (- (car p) 944.253)) 0.5) (< (abs (- (cadr p) 236.305)) 0.5))
+          (progn
+            (entmod (subst (cons 1 "\\pxqc;100% SCHEMATIC DESIGN") (assoc 1 ed) ed))
+            (setq n (1+ n)))))))
+  (setq f (open "C:/RevitAddinDev/CIVIL 3D_MCP Setup/tb_batch/tb_stage_log.csv" "w"))
+  (write-line (strcat (getvar "DWGNAME") ",RESTORED=" (itoa n)) f)
+  (close f)
+  (princ))
+TBRESTORE22
+_.QSAVE
+

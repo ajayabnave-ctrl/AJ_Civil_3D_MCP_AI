@@ -1,0 +1,7 @@
+﻿Processing 1 drawing(s) -> D:/Lighting Design/566-3801_DD100_Civil Defense Package_DT-02-10-2026/Layouts/CAD
+
+  NC-CQT-566-3801-RTC-DWG-LI-100-1000002-D.dwg      
+ Layout1=SKIPPED_0_ROWS (no change, temp removed)
+
+Done: 0 updated, 1 need attention. Log: C:\RevitAddinDev\CIVIL 3D_MCP Setup\tb_batch\tb_batch_log.csv
+

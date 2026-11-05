@@ -1,0 +1,24 @@
+﻿(defun c:TBDIAG3 (/ ss i e ed f b sub sed p)
+  (setq f (open "C:/RevitAddinDev/CIVIL 3D_MCP Setup/tb_batch/tb_diag3.txt" "w"))
+  (write-line (strcat "DWG=" (getvar "DWGNAME")) f)
+  (if (setq ss (ssget "_X" '((0 . "INSERT") (67 . 1))))
+    (progn
+      (setq i 0)
+      (repeat (sslength ss)
+        (setq e (ssname ss i) ed (entget e) i (1+ i))
+        (setq p (cdr (assoc 10 ed)))
+        (write-line (strcat "INSERT|" (cdr (assoc 410 ed)) "|" (cdr (assoc 8 ed)) "|" (cdr (assoc 2 ed)) "|" (rtos (car p) 2 3) "," (rtos (cadr p) 2 3) "|ATTFLAG=" (itoa (cond ((cdr (assoc 66 ed))) (0)))) f)
+        (setq b (tblobjname "BLOCK" (cdr (assoc 2 ed))))
+        (setq sub (cdr (assoc -2 (entget b))))
+        (while sub
+          (setq sed (entget sub))
+          (if (member (cdr (assoc 0 sed)) '("TEXT" "MTEXT" "ATTDEF"))
+            (progn
+              (setq p (cdr (assoc 10 sed)))
+              (write-line (strcat "  DEF|" (cdr (assoc 0 sed)) "|" (cdr (assoc 8 sed)) "|" (rtos (car p) 2 3) "," (rtos (cadr p) 2 3) "|" (itoa (cond ((cdr (assoc 71 sed))) (0))) "|" (cond ((cdr (assoc 2 sed))) ("")) "|" (cdr (assoc 1 sed))) f)))
+          (setq sub (entnext sub))))))
+  (close f)
+  (princ "\nTBDIAG3_OK")
+  (princ))
+TBDIAG3
+
