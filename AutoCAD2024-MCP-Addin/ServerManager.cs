@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -34,32 +35,62 @@ public static class ServerManager
     public static int HandledRequestCount => _handledRequestCount;
     public static string? LastOperation => _lastOperation;
 
-    public static void Start()
+    public static bool Start()
     {
         lock (_sync)
         {
-            if (_isRunning) return;
+            if (_isRunning)
+            {
+                LogInfo($"MCP Server is already running on port {DefaultTcpPort}.");
+                return true;
+            }
+
+            // Check if port is already bound
+            if (IsPortBound(DefaultTcpPort))
+            {
+                if (CanPingServer(DefaultTcpPort))
+                {
+                    _isRunning = true;
+                    _startedAt = DateTime.Now;
+                    LogInfo($"MCP Server listener on port {DefaultTcpPort} is already active and responding.");
+                    EnsureNodeMcpServerRunning();
+                    return true;
+                }
+                else
+                {
+                    LogWarning($"Port {DefaultTcpPort} is in use by another process. Use 'Refresh Server' or check background processes.");
+                    return false;
+                }
+            }
 
             try
             {
                 _cts = new CancellationTokenSource();
                 _listener = new TcpListener(IPAddress.Loopback, DefaultTcpPort);
+                _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 _listener.Start(10);
                 _isRunning = true;
                 _startedAt = DateTime.Now;
 
                 Task.Run(() => AcceptClientsAsync(_listener, _cts.Token));
 
-                // Auto-launch Node MCP server if not already listening
+                // Auto-launch Node MCP server without inheriting parent socket handles
                 EnsureNodeMcpServerRunning();
 
                 LogInfo($"AutoCAD 2024 MCP Server started on port {DefaultTcpPort}.");
+                return true;
+            }
+            catch (SocketException sockEx) when (sockEx.SocketErrorCode == SocketError.AddressAlreadyInUse)
+            {
+                _isRunning = false;
+                LogWarning($"Port {DefaultTcpPort} is already bound. Click 'Refresh Server' on the ribbon to reset.");
+                return false;
             }
             catch (Exception ex)
             {
+                _isRunning = false;
                 LogError("Failed to start MCP server", ex);
-                Stop();
-                throw;
+                return false;
             }
         }
     }
@@ -70,9 +101,9 @@ public static class ServerManager
         {
             LogInfo("Refreshing MCP Server and connections...");
             Stop();
-            Thread.Sleep(500);
+            Thread.Sleep(600);
             Start();
-            LogInfo("MCP Server refreshed successfully.");
+            LogInfo("MCP Server refreshed.");
         }
     }
 
@@ -80,8 +111,6 @@ public static class ServerManager
     {
         lock (_sync)
         {
-            if (!_isRunning) return;
-
             try
             {
                 _cts?.Cancel();
@@ -90,7 +119,6 @@ public static class ServerManager
                 _cts = null;
                 _isRunning = false;
 
-                // Stop node process if we launched it
                 if (_nodeProcess != null && !_nodeProcess.HasExited)
                 {
                     try
@@ -109,6 +137,38 @@ public static class ServerManager
                 LogError("Error while stopping server", ex);
             }
         }
+    }
+
+    private static bool IsPortBound(int port)
+    {
+        try
+        {
+            var ipProps = IPGlobalProperties.GetIPGlobalProperties();
+            var listeners = ipProps.GetActiveTcpListeners();
+            foreach (var ep in listeners)
+            {
+                if (ep.Port == port) return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    private static bool CanPingServer(int port)
+    {
+        try
+        {
+            using (var client = new TcpClient())
+            {
+                var connectTask = client.ConnectAsync("127.0.0.1", port);
+                if (connectTask.Wait(400) && client.Connected)
+                {
+                    return true;
+                }
+            }
+        }
+        catch { }
+        return false;
     }
 
     private static async Task AcceptClientsAsync(TcpListener listener, CancellationToken ct)
@@ -327,7 +387,6 @@ public static class ServerManager
 
     private static void EnsureNodeMcpServerRunning()
     {
-        // Check if port 3000 is open
         try
         {
             using (var testClient = new TcpClient())
@@ -336,14 +395,12 @@ public static class ServerManager
                 bool success = result.AsyncWaitHandle.WaitOne(300);
                 if (success && testClient.Connected)
                 {
-                    // Node bridge already running
                     return;
                 }
             }
         }
         catch { }
 
-        // Start node build/index.js as a background process
         try
         {
             string indexPath = Path.Combine(SetupDirectory, "build", "index.js");
@@ -355,7 +412,8 @@ public static class ServerManager
                     Arguments = $"\"{indexPath}\"",
                     WorkingDirectory = SetupDirectory,
                     CreateNoWindow = true,
-                    UseShellExecute = false
+                    UseShellExecute = true, // Critical: Prevents socket handle inheritance!
+                    WindowStyle = ProcessWindowStyle.Hidden
                 };
                 _nodeProcess = Process.Start(psi);
                 LogInfo("Spawned Node.js MCP Server bridge background process.");
@@ -363,7 +421,7 @@ public static class ServerManager
         }
         catch (Exception ex)
         {
-            LogError("Could not auto-spawn Node MCP server", ex);
+            LogWarning($"Could not auto-spawn Node MCP server: {ex.Message}");
         }
     }
 
@@ -371,6 +429,12 @@ public static class ServerManager
     {
         var doc = App.DocumentManager.MdiActiveDocument;
         doc?.Editor.WriteMessage($"\n[MCP Server] {msg}");
+    }
+
+    private static void LogWarning(string msg)
+    {
+        var doc = App.DocumentManager.MdiActiveDocument;
+        doc?.Editor.WriteMessage($"\n[MCP Server WARNING] {msg}");
     }
 
     private static void LogError(string msg, Exception ex)

@@ -21,18 +21,8 @@ public sealed class PluginEntry : IExtensionApplication
             // 1. Initialize Ribbon Tab and Buttons
             RibbonController.Initialize();
 
-            // 2. Task-based Auto-startup: start MCP server automatically on load
+            // 2. Start MCP server once on load
             ServerManager.Start();
-
-            // 3. Register document notifications
-            App.DocumentManager.DocumentBecameCurrent += (s, e) =>
-            {
-                if (e.Document != null && !ServerManager.IsRunning)
-                {
-                    // Ensure server is active for tasks
-                    ServerManager.Start();
-                }
-            };
 
             WriteCadMessage("AutoCAD 2024 MCP Bridge initialized. Ribbon tab 'AI CAD MCP' ready.");
         }
@@ -56,8 +46,10 @@ public sealed class PluginEntry : IExtensionApplication
     {
         try
         {
-            ServerManager.Start();
-            WriteCadMessage($"MCP Server started on port {ServerManager.DefaultTcpPort}. AI Assistant can connect.");
+            if (ServerManager.Start())
+            {
+                WriteCadMessage($"MCP Server started on port {ServerManager.DefaultTcpPort}. AI Assistant can connect.");
+            }
         }
         catch (System.Exception ex)
         {
